@@ -49,6 +49,19 @@
 #include <asm/uaccess.h>
 #include <asm/sections.h>
 
+#ifdef CONFIG_SRECORDER
+#include <linux/srecorder.h>
+#endif
+
+// Weird downstream stuff
+#ifdef CONFIG_HUAWEI_KERNEL
+#define KMSGCAT_TASK_NAME "kmsgcat"
+#define LOGD_TASK_NAME "logd"
+#define LEN_KMSGCAT_TASK_NAME 8
+
+static bool is_first_printed = false;
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
 
@@ -365,7 +378,13 @@ static u32 log_first_idx;
 
 /* index and sequence number of the next record to store in the buffer */
 static u64 log_next_seq;
+
+// Downstream stuff, again
+#ifndef CONFIG_SRECORDER
 static u32 log_next_idx;
+#else
+static u32 log_next_idx __attribute__((__section__(".data")));
+#endif
 
 /* the next printk record to write to the console */
 static u64 console_seq;
@@ -385,9 +404,36 @@ static u32 clear_idx;
 /* record buffer */
 #define LOG_ALIGN __alignof__(struct printk_log)
 #define __LOG_BUF_LEN (1 << CONFIG_LOG_BUF_SHIFT)
+
+// Downstream change begin
+
+#ifndef CONFIG_SRECORDER
 static char __log_buf[__LOG_BUF_LEN] __aligned(LOG_ALIGN);
 static char *log_buf = __log_buf;
 static u32 log_buf_len = __LOG_BUF_LEN;
+#else
+static char __log_buf[__LOG_BUF_LEN] __attribute__((__section__(".data")));
+static char *log_buf __attribute__((__section__(".data"))) = __log_buf;
+static int log_buf_len __attribute__((__section__(".data"))) = __LOG_BUF_LEN;
+
+void srecorder_get_printk_buf_info(unsigned long* p_log_buf, unsigned* p_log_end, unsigned* p_log_buf_len)
+{
+    *p_log_buf = (unsigned long)log_buf;
+    *p_log_end = (unsigned)log_next_idx;
+    *p_log_buf_len = log_buf_len;
+}
+EXPORT_SYMBOL(srecorder_get_printk_buf_info);
+#endif
+
+void hwboot_get_printk_buf_info(u64 **fseq, u32 **fidx, u64 **nseq)
+{
+   *fseq = &log_first_seq;
+   *fidx = &log_first_idx;
+   *nseq = &log_next_seq;
+   return;
+}
+
+// Downstream change end
 
 /* Return log buffer address */
 char *log_buf_addr_get(void)
@@ -400,6 +446,17 @@ u32 log_buf_len_get(void)
 {
 	return log_buf_len;
 }
+
+// Downstream change begin
+
+#if defined(CONFIG_LOG_BUF_MAGIC)
+static u32 __log_align __used = LOG_ALIGN;
+#define LOG_MAGIC(msg) ((msg)->magic = 0x5d7aefca)
+#else
+#define LOG_MAGIC(msg)
+#endif
+
+// Downstream change end
 
 /* human readable text of the record */
 static char *log_text(const struct printk_log *msg)
@@ -558,6 +615,7 @@ static int log_store(int facility, int level,
 		 * to signify a wrap around.
 		 */
 		memset(log_buf + log_next_idx, 0, sizeof(struct printk_log));
+		LOG_MAGIC((struct printk_log *)(log_buf + log_next_idx));
 		log_next_idx = 0;
 	}
 
@@ -1266,6 +1324,70 @@ static size_t msg_print_text(const struct printk_log *msg, enum log_flags prev,
 		text = next;
 	} while (text);
 
+	return len;
+}
+
+int kmsg_print_to_ddr(char *buf, int size)
+{
+	char *text;
+	struct printk_log *msg;
+	int len = 0;
+	u64 kmsg_seq = 0;
+	u32 kmsg_idx = 0;
+	enum log_flags kmsg_prev = 0;
+	size_t kmsg_partial = 0;
+
+	text = kmalloc(LOG_LINE_MAX + PREFIX_MAX, GFP_KERNEL);
+	if (!text)
+		return -ENOMEM;
+
+	while (size > 0) {
+		size_t n;
+		size_t skip;
+
+		raw_spin_lock_irq(&logbuf_lock);
+		if (kmsg_seq < log_first_seq) {
+			/* messages are gone, move to first one */
+			kmsg_seq = log_first_seq;
+			kmsg_idx = log_first_idx;
+			kmsg_prev = 0;
+			kmsg_partial = 0;
+		}
+		if (kmsg_seq == log_next_seq) {
+			raw_spin_unlock_irq(&logbuf_lock);
+			break;
+		}
+
+		skip = kmsg_partial;
+		msg = log_from_idx(kmsg_idx);
+		n = msg_print_text(msg, kmsg_prev, true, text,
+				   LOG_LINE_MAX + PREFIX_MAX);
+		if (n - kmsg_partial <= size) {
+			/* message fits into buffer, move forward */
+			kmsg_idx = log_next(kmsg_idx);
+			kmsg_seq++;
+			kmsg_prev = msg->flags;
+			n -= kmsg_partial;
+			kmsg_partial = 0;
+		} else if (!len){
+			/* partial read(), remember position */
+			n = size;
+			kmsg_partial += n;
+		} else
+			n = 0;
+		raw_spin_unlock_irq(&logbuf_lock);
+
+		if (!n)
+			break;
+
+		memcpy(buf, text + skip, n);
+
+		len += n;
+		size -= n;
+		buf += n;
+	}
+
+	kfree(text);
 	return len;
 }
 
