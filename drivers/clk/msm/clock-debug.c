@@ -355,8 +355,9 @@ static int trace_clocks_show(struct seq_file *m, void *unused)
 		return 1;
 	}
 	list_for_each_entry(c, &clk_list, list) {
-		trace_clock_state(c->dbg_name, c->prepare_count, c->count,
-					c->rate);
+		// TODO: Hardronix, find a better alternative, if ever needed.
+		//trace_clock_state(c->dbg_name, c->prepare_count, c->count,
+		//			c->rate);
 		total_cnt++;
 	}
 	mutex_unlock(&clk_list_lock);

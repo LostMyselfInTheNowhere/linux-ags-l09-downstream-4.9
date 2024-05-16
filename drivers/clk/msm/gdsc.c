@@ -463,7 +463,8 @@ static int gdsc_probe(struct platform_device *pdev)
 	if (sc == NULL)
 		return -ENOMEM;
 
-	init_data = of_get_regulator_init_data(&pdev->dev, pdev->dev.of_node);
+	// TODO: Fix regulators if needed!
+	// init_data = of_get_regulator_init_data(&pdev->dev, pdev->dev.of_node);
 	if (init_data == NULL)
 		return -ENOMEM;
 

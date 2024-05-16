@@ -137,7 +137,7 @@ static int huawei_apanic_handler(struct notifier_block *this,
 
 #ifdef CONFIG_PREEMPT
 	/* Ensure that cond_resched() won't try to preempt anybody */
-	preempt_count_add(PREEMPT_ACTIVE);
+	preempt_disable();
 #endif
 	magic_number_test= raw_readl(reset_magic_addr);
 	if(magic_number_test!= COMBINED_KEY_RESET_REASON_MAGIC_NUM)
@@ -145,7 +145,7 @@ static int huawei_apanic_handler(struct notifier_block *this,
 		set_reset_magic(RESET_MAGIC_APANIC);
 	}
 #ifdef CONFIG_PREEMPT
-	preempt_count_sub(PREEMPT_ACTIVE);
+	preempt_enable();
 #endif
 
 	return NOTIFY_DONE;

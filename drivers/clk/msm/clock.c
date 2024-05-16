@@ -96,7 +96,7 @@ static int update_vdd(struct clk_vdd_class *vdd_class)
 			goto set_voltage_fail;
 
 		if (ua) {
-			rc = regulator_set_optimum_mode(r[i], ua[new_base + i]);
+			rc = regulator_set_load(r[i], ua[new_base + i]);
 			rc = rc > 0 ? 0 : rc;
 			if (rc)
 				goto set_mode_fail;
@@ -124,7 +124,7 @@ enable_disable_fail:
 	if (ua) {
 		regulator_set_voltage(r[i], uv[cur_base + i],
 			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
-		regulator_set_optimum_mode(r[i], ua[cur_base + i]);
+		regulator_set_load(r[i], ua[cur_base + i]);
 	}
 
 set_mode_fail:
@@ -136,7 +136,7 @@ set_voltage_fail:
 		regulator_set_voltage(r[i], uv[cur_base + i],
 			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
 		if (ua)
-			regulator_set_optimum_mode(r[i], ua[cur_base + i]);
+			regulator_set_load(r[i], ua[cur_base + i]);
 		if (cur_lvl == 0 || cur_lvl == vdd_class->num_levels)
 			regulator_disable(r[i]);
 		else if (level == 0)
@@ -313,6 +313,7 @@ void __clk_post_reparent(struct clk *c, struct clk *old, unsigned long *flags)
 		clk_unprepare(old);
 }
 
+/*
 int clk_prepare(struct clk *clk)
 {
 	int ret = 0;
@@ -355,10 +356,12 @@ err_prepare_depends:
 	goto out;
 }
 EXPORT_SYMBOL(clk_prepare);
+*/
 
 /*
  * Standard clock functions defined in include/linux/clk.h
  */
+ /*
 int clk_enable(struct clk *clk)
 {
 	int ret = 0;
@@ -405,7 +408,9 @@ err_enable_parent:
 	return ret;
 }
 EXPORT_SYMBOL(clk_enable);
+*/
 
+/*
 void clk_disable(struct clk *clk)
 {
 	const char *name;
@@ -435,7 +440,9 @@ out:
 	spin_unlock_irqrestore(&clk->lock, flags);
 }
 EXPORT_SYMBOL(clk_disable);
+*/
 
+/*
 void clk_unprepare(struct clk *clk)
 {
 	const char *name;
@@ -465,6 +472,7 @@ out:
 	mutex_unlock(&clk->prepare_lock);
 }
 EXPORT_SYMBOL(clk_unprepare);
+*/
 
 int clk_reset(struct clk *clk, enum clk_reset_action action)
 {
@@ -635,6 +643,7 @@ int msm_clk_notif_unregister(struct clk *clk, struct notifier_block *nb)
 	return ret;
 }
 
+/*
 unsigned long clk_get_rate(struct clk *clk)
 {
 	if (IS_ERR_OR_NULL(clk))
@@ -646,7 +655,9 @@ unsigned long clk_get_rate(struct clk *clk)
 	return clk->ops->get_rate(clk);
 }
 EXPORT_SYMBOL(clk_get_rate);
+*/
 
+/*
 int clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned long start_rate;
@@ -662,7 +673,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 
 	mutex_lock(&clk->prepare_lock);
 
-	/* Return early if the rate isn't going to change */
+	// Return early if the rate isn't going to change
 	if (clk->rate == rate && !(clk->flags & CLKFLAG_NO_RATE_CACHE))
 		goto out;
 
@@ -684,7 +695,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 			goto abort_set_rate;
 	}
 
-	/* Enforce vdd requirements for target frequency. */
+	// Enforce vdd requirements for target frequency.
 	if (clk->prepare_count) {
 		rc = vote_rate_vdd(clk, rate);
 		if (rc)
@@ -696,7 +707,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 		goto err_set_rate;
 	clk->rate = rate;
 
-	/* Release vdd requirements for starting frequency. */
+	// Release vdd requirements for starting frequency.
 	if (clk->prepare_count)
 		unvote_rate_vdd(clk, start_rate);
 
@@ -706,7 +717,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	if (clk->notifier_count)
 		__clk_notify(clk, POST_RATE_CHANGE, start_rate, clk->rate);
 
-	trace_clock_set_rate_complete(name, clk->rate, raw_smp_processor_id());
+	trace_clock_set_rate(name, clk->rate, raw_smp_processor_id());
 out:
 	mutex_unlock(&clk->prepare_lock);
 	return rc;
@@ -717,13 +728,15 @@ err_set_rate:
 	if (clk->prepare_count)
 		unvote_rate_vdd(clk, rate);
 err_vote_vdd:
-	/* clk->rate is still the old rate. So, pass the new rate instead. */
+	// clk->rate is still the old rate. So, pass the new rate instead.
 	if (clk->ops->post_set_rate)
 		clk->ops->post_set_rate(clk, rate);
 	goto out;
 }
 EXPORT_SYMBOL(clk_set_rate);
+*/
 
+/*
 long clk_round_rate(struct clk *clk, unsigned long rate)
 {
 	long rrate;
@@ -750,7 +763,9 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 	return rrate;
 }
 EXPORT_SYMBOL(clk_round_rate);
+*/
 
+/*
 int clk_set_max_rate(struct clk *clk, unsigned long rate)
 {
 	if (IS_ERR_OR_NULL(clk))
@@ -762,6 +777,7 @@ int clk_set_max_rate(struct clk *clk, unsigned long rate)
 	return clk->ops->set_max_rate(clk, rate);
 }
 EXPORT_SYMBOL(clk_set_max_rate);
+*/
 
 int parent_to_src_sel(struct clk_src *parents, int num_parents, struct clk *p)
 {
@@ -782,6 +798,7 @@ int clk_get_parent_sel(struct clk *c, struct clk *parent)
 }
 EXPORT_SYMBOL(clk_get_parent_sel);
 
+/*
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
 	int rc = 0;
@@ -804,7 +821,9 @@ out:
 	return rc;
 }
 EXPORT_SYMBOL(clk_set_parent);
+*/
 
+/*
 struct clk *clk_get_parent(struct clk *clk)
 {
 	if (IS_ERR_OR_NULL(clk))
@@ -813,6 +832,7 @@ struct clk *clk_get_parent(struct clk *clk)
 	return clk->parent;
 }
 EXPORT_SYMBOL(clk_get_parent);
+*/
 
 int clk_set_flags(struct clk *clk, unsigned long flags)
 {
@@ -1064,13 +1084,13 @@ static struct clk *of_clk_src_get(struct of_phandle_args *clkspec,
 				  void *data)
 {
 	struct of_msm_provider_data *ofdata = data;
-	int n;
-
-	for (n = 0; n < ofdata->size; n++) {
-		if (clkspec->args[0] == ofdata->table[n].of_idx)
-			return ofdata->table[n].clk;
-	}
-	return ERR_PTR(-ENOENT);
+	int i;
+	int idx;
+	
+	if(clkspec->args_count < 1)
+		return ERR_PTR(-EINVAL);
+		
+	return ofdata->table[clkspec->args[0]].clk;
 }
 
 #define MAX_LEN_OPP_HANDLE	50
@@ -1157,7 +1177,7 @@ static int get_voltage(struct clk *clk, unsigned long rate,
 		return uv;
 	}
 
-	uv = regulator_list_corner_voltage(vdd->regulator[0], corner);
+	uv = regulator_list_voltage(vdd->regulator[0], corner);
 	if (uv < 0) {
 		pr_err("%s: no uv for corner %d - err: %d\n",
 				clk->dbg_name, corner, uv);
